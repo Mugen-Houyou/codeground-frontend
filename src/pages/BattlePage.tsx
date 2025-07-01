@@ -29,6 +29,7 @@ const BattlePage = () => {
   const lineNumbersRef = useRef<HTMLDivElement>(null);
 
   const problem = {
+    id: 'demo-problem',
     title: '문제 설명',
     description: '정수 n을 입력받아 n의 약수를 모두 더한 값을 리턴하는 함수, solution을 완성해주세요.',
     constraints: ['n은 0 이상 3000이하인 정수입니다.'],
@@ -187,8 +188,54 @@ const BattlePage = () => {
     }, 2000);
   };
 
-  const handleSubmit = () => {
-    navigate('/result');
+  const handleSubmit = async () => {
+    setExecutionResult('채점을 시작합니다...');
+    try {
+      const res = await fetch('http://localhost:8000/api/v1/game/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({
+          language: 'python',
+          code,
+          problem_id: problem.id,
+        }),
+      });
+
+      if (!res.body) {
+        setExecutionResult('서버 응답이 올바르지 않습니다.');
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (const chunk of parts) {
+          const line = chunk.trim();
+          if (line.startsWith('data:')) {
+            const payload = JSON.parse(line.slice(5).trim());
+            if (payload.type === 'progress') {
+              setExecutionResult(`채점 진행중... ${payload.progress}%`);
+            }
+            if (payload.type === 'final') {
+              setExecutionResult(`채점 결과: ${payload.result}`);
+              navigate('/result');
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('submit error', error);
+      setExecutionResult('채점 중 오류가 발생했습니다.');
+    }
   };
 
   const toggleHint = () => {
