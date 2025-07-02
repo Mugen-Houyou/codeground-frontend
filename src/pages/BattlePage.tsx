@@ -486,11 +486,11 @@ const BattlePage = () => {
                   </div>
                   
                   <div className="flex-1 p-2">
-                    <ScrollArea className="h-full bg-black/30 border border-gray-700 rounded p-3 overflow-auto">
+                    <div className="h-full bg-black/30 border border-gray-700 rounded p-3 overflow-auto">
                       <pre className="font-mono text-xs text-gray-300 whitespace-pre-wrap break-words">
                         {executionResult}
                       </pre>
-                    </ScrollArea>
+                    </div>
                   </div>
                 </CyberCard>
               </ResizablePanel>
