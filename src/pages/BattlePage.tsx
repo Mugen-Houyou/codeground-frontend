@@ -298,7 +298,7 @@ const BattlePage = () => {
           <ResizablePanel defaultSize={40} minSize={30}>
             <div className="h-full flex flex-col">
               {/* 좌측 상단 - 문제 */}
-              <div className="flex-1 mb-2">
+              <div className="flex-1 mb-2 min-h-0">
                 <CyberCard className="h-full p-4 mr-2 max-h-[860px] overflow-hidden">
                   <ScrollArea className="h-full">
                     <div className="space-y-4 pr-4">
