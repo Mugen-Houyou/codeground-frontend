@@ -22,6 +22,7 @@ const BattlePage = () => {
   const [chatMessages, setChatMessages] = useState<{ user: string; message: string }[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [executionResult, setExecutionResult] = useState('실행 결과가 여기에 표시됩니다.');
+  const [runStatus, setRunStatus] = useState<string | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [isLocalStreamActive, setIsLocalStreamActive] = useState(true);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +184,7 @@ const BattlePage = () => {
 
   const handleRun = async () => {
     setExecutionResult('코드를 실행하고 있습니다...');
+    setRunStatus(null);
 
     try {
       const response = await authFetch('http://localhost:8000/api/v1/game/submit', {
@@ -226,6 +228,7 @@ const BattlePage = () => {
               setExecutionResult(prev =>
                 `${prev}\n채점 완료. All Passed: ${data.allPassed ? 'Yes' : 'No'}`,
               );
+              setRunStatus(data.allPassed ? '성공' : '실패');
             }
           }
         }
@@ -461,7 +464,16 @@ const BattlePage = () => {
               <ResizablePanel defaultSize={25} minSize={15}>
                 <CyberCard className="h-full flex flex-col ml-2 mt-1">
                   <div className="flex items-center justify-between px-3 py-1 border-b border-gray-700/50">
-                    <h3 className="text-sm font-semibold text-cyber-blue">실행 결과</h3>
+                    <h3 className="text-sm font-semibold text-cyber-blue">
+                      실행 결과
+                      {runStatus && (
+                        <span
+                          className={`ml-2 text-xs ${runStatus === '성공' ? 'text-green-400' : 'text-red-400'}`}
+                        >
+                          {runStatus}
+                        </span>
+                      )}
+                    </h3>
                     <div className="flex space-x-1">
                       <CyberButton onClick={handleRun} size="sm" variant="secondary" className="px-6">
                         <Play className="mr-1 h-3 w-3" />
