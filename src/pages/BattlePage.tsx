@@ -299,7 +299,7 @@ const BattlePage = () => {
             <div className="h-full flex flex-col">
               {/* 좌측 상단 - 문제 */}
               <div className="flex-1 mb-2">
-                <CyberCard className="h-full p-4 mr-2">
+                <CyberCard className="h-full p-4 mr-2 max-h-[860px] overflow-hidden">
                   <ScrollArea className="h-full">
                     <div className="space-y-4 pr-4">
                       <div className="flex items-start justify-between">
@@ -323,7 +323,7 @@ const BattlePage = () => {
                         </div>
                       )}
                       
-                    <div>
+                    <div style={{ whiteSpace: 'pre-wrap', overflowY: 'auto' }}>
                       <p className="text-gray-300 leading-relaxed">{problem.description}</p>
                     </div>
 
@@ -359,7 +359,7 @@ const BattlePage = () => {
               </div>
 
               {/* 좌측 하단 - 채팅 & 화면공유 (고정 높이) */}
-              <div className="h-48 flex gap-2 mr-2">
+              <div className="h-48 flex gap-2 mr-2" >
                 {/* 채팅 */}
                 <div className="flex-1 min-w-0">
                   <CyberCard className="p-3 flex flex-col h-full">
@@ -485,7 +485,7 @@ const BattlePage = () => {
                     </div>
                   </div>
                   
-                  <div className="flex-1 p-2">
+                  <div className="flex-1 p-2" style={{ height: 'calc(100% - 40px)' }}>
                     <div className="h-full bg-black/30 border border-gray-700 rounded p-3 overflow-auto">
                       <pre className="font-mono text-xs text-gray-300 whitespace-pre-wrap break-words">
                         {executionResult}
