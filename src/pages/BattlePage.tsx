@@ -447,6 +447,7 @@ const BattlePage = () => {
     setRunStatus(null);
 
     try {
+      const matchId = localStorage.getItem('currentMatchId');
       const response = await authFetch(
         "http://localhost:8000/api/v1/game/submit",
         {
@@ -459,6 +460,7 @@ const BattlePage = () => {
             language: "python",
             code,
             problem_id: `${problemId}`,
+            match_id: matchId,
           }),
         },
       );

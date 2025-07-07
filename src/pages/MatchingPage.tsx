@@ -51,6 +51,7 @@ const MatchingPage = () => {
         setOpponentAccepted(false);
         setAcceptTimeLeft(message.time_limit);
         matchIdRef.current = message.match_id;
+        localStorage.setItem('currentMatchId', String(message.match_id));
         // You might want to update opponent details here based on message.opponent_ids
       } else if (message.type === "match_accepted") {
         if (message.problem && message.game_id) {
@@ -72,6 +73,7 @@ const MatchingPage = () => {
         setUserAccepted(false);
         setOpponentAccepted(false);
         matchIdRef.current = null;
+        localStorage.removeItem('currentMatchId');
         if (message.reason === "timeout or rejection") {
           navigate("/home"); // Go back to home or a suitable page
         }
@@ -132,6 +134,7 @@ const MatchingPage = () => {
       const message = { type: "match_accept", match_id: matchIdRef.current };
       console.log("Sending WebSocket message:", message);
       ws.send(JSON.stringify(message));
+      localStorage.setItem('currentMatchId', String(matchIdRef.current));
     } else {
       console.warn(
         "WebSocket not connected or matchId not set. ws:",
@@ -149,6 +152,7 @@ const MatchingPage = () => {
         JSON.stringify({ type: "match_reject", match_id: matchIdRef.current }),
       );
     }
+    localStorage.removeItem('currentMatchId');
     navigate("/home"); // Navigate away after declining
   };
 
@@ -156,6 +160,7 @@ const MatchingPage = () => {
     if (ws) {
       ws.send(JSON.stringify({ type: "cancel_queue" }));
     }
+    localStorage.removeItem('currentMatchId');
     navigate("/home"); // Navigate away after cancelling
   };
 
