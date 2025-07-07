@@ -70,6 +70,33 @@ const BattlePage = () => {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
+  const addOpponentMessage = useCallback(
+    (message: string) =>
+      setChatMessages(prev => [
+        ...prev,
+        { user: '상대', message, type: 'chat' },
+      ]),
+    [],
+  );
+
+  const addSystemMessage = useCallback(
+    (message: string) =>
+      setChatMessages(prev => [
+        ...prev,
+        { user: '시스템', message, type: 'system' },
+      ]),
+    [],
+  );
+
+  const addSelfMessage = useCallback(
+    (message: string) =>
+      setChatMessages(prev => [
+        ...prev,
+        { user: '나', message, type: 'chat' },
+      ]),
+    [],
+  );
+
   const { reportCheating } = useCheatDetection({
     gameId,
     remoteVideoRef,
@@ -154,6 +181,122 @@ const BattlePage = () => {
     setPeerConnection(pc);
   }, [createPeerConnection, sendMessage]);
 
+  const handleWebSocketMessage = useCallback(
+    async (data: any) => {
+      switch (data.type) {
+        case 'chat':
+          if (data.sender !== user.user_id) {
+            addOpponentMessage(data.message);
+          }
+          break;
+        case 'webrtc_signal':
+          if (data.sender !== user.user_id) {
+            await handleSignal(data.signal);
+          }
+          break;
+        case 'system_warning': {
+          const isMe = data.user_id === user.user_id;
+          const subject = isMe ? '나' : '상대방';
+          const eventText =
+            data.event === 'tab_hidden'
+              ? '화면을 벗어났습니다'
+              : '마우스가 화면 밖으로 나갔습니다';
+          addSystemMessage(`경고: ${subject}${isMe ? '가' : '이'} ${eventText}. (경고 ${data.count}/5)`);
+          break;
+        }
+        case 'match_result':
+          console.log('BattlePage: Match result received:', data);
+          try {
+            localStorage.setItem('matchResult', JSON.stringify(data));
+            if (data.reason === 'surrender' && data.winner === user.user_id) {
+              setIsGameFinished(true);
+              setShowSurrenderModal(true);
+            } else {
+              navigate('/result', { state: { matchResult: data } });
+            }
+          } catch (e) {
+            console.error('BattlePage: Failed to save match result or navigate:', e);
+          }
+          break;
+        case 'game_over':
+          navigate('/result');
+          break;
+        case 'opponent_left':
+          setIsGameFinished(true);
+          setShowOpponentLeftModal(true);
+          addSystemMessage('상대방이 게임을 떠났습니다.');
+          break;
+        case 'opponent_rejoined':
+          setShowOpponentLeftModal(false);
+          setIsRemoteStreamActive(false);
+          setShowRemoteScreenSharePrompt(true);
+          setIsGamePaused(true);
+          addSystemMessage('상대방이 다시 연결되었습니다.');
+          break;
+        case 'screen_share_stopped': {
+          const isMe = data.user_id === user.user_id;
+          addSystemMessage(isMe ? '내 화면 공유가 중지되었습니다.' : '상대방 화면 공유가 중지되었습니다.');
+          if (!isMe) {
+            setIsRemoteStreamActive(false);
+            setShowRemoteScreenSharePrompt(true);
+            setIsGamePaused(true);
+          } else {
+            setShowScreenShareRequiredModal(true);
+            setScreenShareCountdown(60);
+            if (screenShareCountdownIntervalRef.current) {
+              clearInterval(screenShareCountdownIntervalRef.current);
+            }
+            screenShareCountdownIntervalRef.current = setInterval(() => {
+              setScreenShareCountdown(prev => {
+                if (prev <= 1) {
+                  clearInterval(screenShareCountdownIntervalRef.current!);
+                  sendMessage(JSON.stringify({ type: 'match_result', reason: 'surrender' }));
+                  navigate('/result');
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+            setIsGamePaused(true);
+          }
+          break;
+        }
+        case 'screen_share_started': {
+          const isMe = data.user_id === user.user_id;
+          addSystemMessage(isMe ? '내 화면 공유가 재개되었습니다.' : '상대방 화면 공유가 재개되었습니다.');
+          if (!isMe) {
+            setIsRemoteStreamActive(true);
+            setShowRemoteScreenSharePrompt(false);
+            if (isLocalStreamActive) {
+              setIsGamePaused(false);
+            }
+          } else {
+            if (screenShareCountdownIntervalRef.current) {
+              clearInterval(screenShareCountdownIntervalRef.current);
+            }
+            setShowScreenShareRequiredModal(false);
+            if (isRemoteStreamActive) {
+              setIsGamePaused(false);
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [
+      user,
+      addOpponentMessage,
+      addSystemMessage,
+      handleSignal,
+      navigate,
+      isLocalStreamActive,
+      isRemoteStreamActive,
+      sendMessage,
+    ],
+  );
+
   useEffect(() => {
     if (!websocket) return;
 
@@ -167,141 +310,12 @@ const BattlePage = () => {
     websocket.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'chat' && data.sender !== user.user_id) {
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              user: '상대',
-              message: data.message,
-              type: 'chat',
-            },
-          ]);
-        } else if (data.type === 'webrtc_signal' && data.sender !== user.user_id) {
-          await handleSignal(data.signal);
-        } else if (data.type === 'system_warning') {
-          const isMe = data.user_id === user.user_id;
-          const subject = isMe ? '나' : '상대방';
-          const eventText = data.event === 'tab_hidden' ? '화면을 벗어났습니다' : '마우스가 화면 밖으로 나갔습니다';
-          const message = `경고: ${subject}${isMe ? '가' : '이'} ${eventText}. (경고 ${data.count}/5)`;
-
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              user: '시스템',
-              message: message,
-              type: 'system',
-            },
-          ]);
-        } else if (data.type === 'match_result') {
-          console.log('BattlePage: Match result received:', data);
-          try {
-            localStorage.setItem('matchResult', JSON.stringify(data));
-            if (data.reason === 'surrender' && data.winner === user.user_id) {
-              setIsGameFinished(true);
-              setShowSurrenderModal(true);
-            } else {
-              navigate('/result', { state: { matchResult: data } });
-            }
-          } catch (e) {
-            console.error('BattlePage: Failed to save match result or navigate:', e);
-          }
-        } else if (data.type === 'game_over') {
-          navigate('/result');
-        } else if (data.type === 'opponent_left') {
-          setIsGameFinished(true);
-          setShowOpponentLeftModal(true);
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              user: '시스템',
-              message: '상대방이 게임을 떠났습니다.',
-              type: 'system',
-            },
-          ]);
-        } else if (data.type === 'opponent_rejoined') {
-          setShowOpponentLeftModal(false);
-          setIsRemoteStreamActive(false);
-          setShowRemoteScreenSharePrompt(true);
-          setIsGamePaused(true);
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              user: '시스템',
-              message: '상대방이 다시 연결되었습니다.',
-              type: 'system',
-            },
-          ]);
-        } else if (data.type === 'screen_share_stopped') {
-          console.log("Received screen_share_stopped message:", data);
-          const isMe = data.user_id === user.user_id;
-          console.log("isMe:", isMe, "data.user_id:", data.user_id, "user.user_id:", user.user_id);
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              user: '시스템',
-              message: isMe ? '내 화면 공유가 중지되었습니다.' : '상대방 화면 공유가 중지되었습니다.',
-              type: 'system',
-            },
-          ]);
-          if (!isMe) {
-            setIsRemoteStreamActive(false);
-            setShowRemoteScreenSharePrompt(true);
-            setIsGamePaused(true); // 상대방 화면 공유 중단 시 게임 일시 정지
-          } else {
-            // 자신이 화면 공유를 중지한 경우
-            console.log("Setting showScreenShareRequiredModal to true.");
-            setShowScreenShareRequiredModal(true);
-            setScreenShareCountdown(60); // 1분 (60초) 카운트다운 시작
-            if (screenShareCountdownIntervalRef.current) {
-              clearInterval(screenShareCountdownIntervalRef.current);
-            }
-            screenShareCountdownIntervalRef.current = setInterval(() => {
-              setScreenShareCountdown((prev) => {
-                if (prev <= 1) {
-                  clearInterval(screenShareCountdownIntervalRef.current!); // 카운트다운 종료
-                  // 1분 안에 화면 공유를 다시 시작하지 않으면 항복 처리
-                  sendMessage(JSON.stringify({ type: "match_result", reason: "surrender" }));
-                  navigate('/result'); // 결과 페이지로 이동
-                  return 0;
-                }
-                return prev - 1;
-              });
-            }, 1000);
-            setIsGamePaused(true); // 자신의 화면 공유 중단 시 게임 일시 정지
-          }
-        } else if (data.type === 'screen_share_started') {
-          console.log("Received screen_share_started message:", data);
-          const isMe = data.user_id === user.user_id;
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              user: '시스템',
-              message: isMe ? '내 화면 공유가 재개되었습니다.' : '상대방 화면 공유가 재개되었습니다.',
-              type: 'system',
-            },
-          ]);
-          if (!isMe) {
-            setIsRemoteStreamActive(true);
-            setShowRemoteScreenSharePrompt(false);
-            if (isLocalStreamActive) {
-              setIsGamePaused(false); // 두 사용자가 모두 공유 중일 때만 게임 재개
-            }
-          } else {
-            // 자신이 화면 공유를 재개한 경우 (서버로부터의 확인 메시지)
-            if (screenShareCountdownIntervalRef.current) {
-              clearInterval(screenShareCountdownIntervalRef.current);
-            }
-            setShowScreenShareRequiredModal(false);
-            if (isRemoteStreamActive) {
-              setIsGamePaused(false); // 두 사용자가 모두 공유 중일 때만 게임 재개
-            }
-          }
-        }
+        await handleWebSocketMessage(data);
       } catch (e) {
         console.error('BattlePage: ws message parse error', e);
       }
     };
-  }, [websocket, user, handleSignal]);
+  }, [websocket, user, handleSignal, handleWebSocketMessage]);
 
   const cleanupScreenShare = useCallback(() => {
     const { websocket } = useWebSocketStore.getState(); // 최신 websocket 인스턴스를 직접 가져옴
@@ -457,7 +471,7 @@ const BattlePage = () => {
     if (!newMessage.trim()) return;
     const msgObj = { type: "chat", message: newMessage };
     sendMessage(JSON.stringify(msgObj));
-    setChatMessages((prev) => [...prev, { user: '나', message: newMessage, type: 'chat' }]);
+    addSelfMessage(newMessage);
     setNewMessage("");
   };
 
