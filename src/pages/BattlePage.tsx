@@ -45,7 +45,7 @@ import useCodeExecution from "./BattlePage/hooks/useCodeExecution";
 import useScreenShare from "./BattlePage/hooks/useScreenShare";
 
 const apiUrl = import.meta.env.VITE_API_URL;
-const wsUrl = apiUrl.replace(/^http/, "ws");
+const wsBaseUrl = apiUrl.replace(/^http/, "ws");
 
 const BattlePage = () => {
   const navigate = useNavigate();
@@ -56,6 +56,9 @@ const BattlePage = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const { problem, imageUrlMap } = useProblem(gameId);
+  const typedProblem = problem as { id?: number; problem_id?: number } | null;
+  const problemId = typedProblem?.id ?? typedProblem?.problem_id;
   const {
     code,
     setCode,
@@ -68,7 +71,7 @@ const BattlePage = () => {
     handleScroll,
     handleKeyDown,
     languageConfig,
-  } = useCodeExecution(undefined);
+  } = useCodeExecution(problemId);
   const {
     chatMessages,
     newMessage,
@@ -76,7 +79,7 @@ const BattlePage = () => {
     handleSendMessage,
     chatEndRef,
     setChatMessages,
-  } = useChatMessages({ websocket, userId: user?.user_id, sendMessage });
+  } = useChatMessages({ sendMessage });
   const [showHint, setShowHint] = useState(false);
   const [showScreenSharePrompt, setShowScreenSharePrompt] = useState(false);
   const {
@@ -103,9 +106,6 @@ const BattlePage = () => {
   const isConfirmedExitRef = useRef(false);
   const [currentLanguage] = useState<ProgrammingLanguage>("python");
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const { problem, imageUrlMap } = useProblem(gameId);
-  const typedProblem = problem as { id?: number; problem_id?: number } | null;
-  const problemId = typedProblem?.id ?? typedProblem?.problem_id;
   const { timeLeft, setTimeLeft } = useGameTimer(
     sendMessage,
     isGamePaused,
@@ -119,7 +119,7 @@ const BattlePage = () => {
     isActive: isCheatDetectionActive,
   });
 
-  const createPeerConnection = useCallback(() => {
+  function createPeerConnection() {
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
@@ -166,12 +166,7 @@ const BattlePage = () => {
       }
     };
     return pc;
-  }, [
-    sendMessage,
-    isGameFinished,
-    setIsRemoteStreamActive,
-    setShowRemoteScreenSharePrompt,
-  ]);
+  }
 
   const handleSignal = useCallback(
     async (signal: Record<string, unknown>) => {
@@ -216,7 +211,7 @@ const BattlePage = () => {
       }
       setPeerConnection(pc);
     },
-    [createPeerConnection, sendMessage],
+    [sendMessage],
   );
 
   useEffect(() => {
@@ -452,19 +447,19 @@ const BattlePage = () => {
 
   useEffect(() => {
     const storedWebsocketUrl = localStorage.getItem("websocketUrl");
-    let wsUrl: string | null = null;
+    let websocketUrl: string | null = null;
 
     if (storedWebsocketUrl) {
-      wsUrl = storedWebsocketUrl;
+      websocketUrl = storedWebsocketUrl;
       console.log(
         "BattlePage: Using stored WebSocket URL from localStorage:",
-        wsUrl,
+        websocketUrl,
       );
     } else if (user?.user_id && gameId) {
-      wsUrl = `${wsUrl}/api/v1/game/ws/game/${gameId}?user_id=${user.user_id}`;
+      websocketUrl = `${wsBaseUrl}/api/v1/game/ws/game/${gameId}?user_id=${user.user_id}`;
       console.log(
         "BattlePage: Constructing WebSocket URL from gameId and userId:",
-        wsUrl,
+        websocketUrl,
       );
     } else {
       console.log(
@@ -478,7 +473,7 @@ const BattlePage = () => {
       console.log(
         "BattlePage: WebSocket not connected or closed. Attempting to connect.",
       );
-      connect(wsUrl);
+      connect(websocketUrl);
     }
   }, [websocket, user, gameId, connect]);
 
@@ -518,43 +513,6 @@ const BattlePage = () => {
     sendMessage,
     navigate,
   ]);
-
-  useEffect(() => {
-    if (isGamePaused || isGameFinished) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          sendMessage(
-            JSON.stringify({ type: "match_result", reason: "timeout" }),
-          );
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [sendMessage, isGamePaused, isGameFinished]);
-
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [chatMessages]);
-
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
-    const msgObj = { type: "chat", message: newMessage };
-    sendMessage(JSON.stringify(msgObj));
-    setChatMessages((prev) => [
-      ...prev,
-      { user: "나", message: newMessage, type: "chat" },
-    ]);
-    setNewMessage("");
-  };
 
   const handleReportClick = () => {
     setIsReportModalOpen(true);
