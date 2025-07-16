@@ -1,6 +1,6 @@
 import CyberCard from "@/components/CyberCard";
 import CyberButton from "@/components/CyberButton";
-import { Users } from "lucide-react";
+import { Users,User } from "lucide-react";
 import { parseTotalScore } from "@/utils/lpSystem";
 import { getAbsoluteUrl } from "@/lib/utils";
 
@@ -20,6 +20,8 @@ interface Props {
 }
 
 const ProfileSummaryCard = ({ user, onViewProfile }: Props) => {
+  const DEFAULT_PROFILE_IMG_PATH = "/profiles-static/user-whitened.png";
+
   const { tier, lp } = parseTotalScore(user.totalScore);
   const winRate = user.win_rate != null ? user.win_rate.toFixed(2) : "0.00";
 
@@ -29,11 +31,17 @@ const ProfileSummaryCard = ({ user, onViewProfile }: Props) => {
     <CyberCard className="text-center">
       {/* 1. 프로필 이미지 */}
       <div className="w-20 h-20 rounded-full mx-auto mb-2 overflow-hidden bg-cyber-dark flex items-center justify-center border-2 border-cyber-blue">
-        {profileImageUrl ? (
-          <img src={profileImageUrl} alt="프로필 이미지" className="h-full w-full object-cover" />
-        ) : (
-          <Users className="h-10 w-10 text-white" />
-        )}
+        <img
+          src={profileImageUrl || DEFAULT_PROFILE_IMG_PATH}
+          alt="프로필 이미지"
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (target.src !== DEFAULT_PROFILE_IMG_PATH) {
+              target.src = DEFAULT_PROFILE_IMG_PATH;
+            }
+          }}
+        />
       </div>
       {/* 2. 닉네임 */}
       <h3 className="text-xl font-bold text-white mb-1">
