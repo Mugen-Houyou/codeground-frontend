@@ -584,7 +584,7 @@ const ScreenShareSetupPage = () => {
               <div
                 className="h-full bg-gradient-to-r from-cyber-blue to-cyber-purple rounded-full transition-all duration-1000 ease-linear"
                 style={{
-                  width: `${((4 - countdown) / 3) * 100}%`,
+                  width: `${((3 - countdown) / 3) * 100}%`,
                   boxShadow: "0 0 10px rgba(0, 200, 255, 0.5)",
                 }}
               />
